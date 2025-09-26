@@ -1,6 +1,13 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
-import { addTodo, toggleTodo, deleteTodo, updateTodo } from './todoSlice';
+import { 
+  fetchTodos, 
+  addTodoAsync, 
+  toggleTodoAsync, 
+  deleteTodoAsync, 
+  updateTodoAsync,
+  clearError 
+} from './todoSlice';
 import { logout } from '../user/userSlice';
 import { 
   Container, 
@@ -15,7 +22,11 @@ import {
   Badge, 
   ListGroup, 
   InputGroup,
-  ButtonGroup
+  ButtonGroup,
+  Alert,
+  Spinner,
+  Offcanvas,
+  Stack
 } from 'react-bootstrap';
 import 'bootstrap/dist/css/bootstrap.min.css';
 import './TodoApp.css';
@@ -24,14 +35,30 @@ export function TodoApp() {
   const [todoName, setTodoName] = useState('');
   const [editId, setEditId] = useState(null);
   const [editName, setEditName] = useState('');
+  const [showSidebar, setShowSidebar] = useState(false);
 
-  const todos = useSelector(state => state.todos);
+  const { items: todos, loading, error, operationLoading } = useSelector(state => state.todos);
   const user = useSelector(state => state.user);
   const dispatch = useDispatch();
 
+  // Fetch todos on component mount
+  useEffect(() => {
+    dispatch(fetchTodos());
+  }, [dispatch]);
+
+  // Clear error after 5 seconds
+  useEffect(() => {
+    if (error) {
+      const timer = setTimeout(() => {
+        dispatch(clearError());
+      }, 5000);
+      return () => clearTimeout(timer);
+    }
+  }, [error, dispatch]);
+
   const handleAdd = () => {
     if (todoName.trim() === '') return;
-    dispatch(addTodo(todoName));
+    dispatch(addTodoAsync(todoName));
     setTodoName('');
   };
 
@@ -52,7 +79,7 @@ export function TodoApp() {
 
   const handleSaveEdit = () => {
     if (editName.trim() === '') return;
-    dispatch(updateTodo({ id: editId, newName: editName }));
+    dispatch(updateTodoAsync({ id: editId, newName: editName }));
     setEditId(null);
     setEditName('');
   };
@@ -67,168 +94,250 @@ export function TodoApp() {
   const progressPercentage = totalCount > 0 ? (completedCount / totalCount) * 100 : 0;
 
   return (
-    <div className="todo-app">
-      {/* Header */}
-      <Navbar bg="primary" variant="dark" className="todo-header">
-        <Container fluid>
-          <Navbar.Brand className="app-title">
-            <span className="app-icon me-2">📝</span>
-            TodoApp
+    <div className="modern-todo-app">
+      {/* Modern Header */}
+      <Navbar expand="lg" className="modern-navbar">
+        <Container>
+          <Navbar.Brand className="modern-brand">
+            <div className="brand-icon">✓</div>
+            <span className="brand-text">TaskFlow</span>
           </Navbar.Brand>
-          <Nav className="ms-auto">
-            <Navbar.Text className="user-info me-3">
-              <div className="d-flex flex-column align-items-end">
-                <small className="user-greeting">Welcome back,</small>
-                <strong className="user-name">{user.name}</strong>
+          
+          <Navbar.Toggle 
+            aria-controls="basic-navbar-nav" 
+            onClick={() => setShowSidebar(!showSidebar)}
+            className="modern-toggle"
+          />
+          
+          <Navbar.Collapse id="basic-navbar-nav">
+            <Nav className="ms-auto">
+              <div className="user-profile">
+                <div className="user-avatar">
+                  {user.name.charAt(0).toUpperCase()}
+                </div>
+                <div className="user-details">
+                  <div className="user-name">{user.name}</div>
+                  <div className="user-status">Demo User</div>
+                </div>
+                <Button 
+                  variant="outline-light" 
+                  size="sm"
+                  onClick={handleLogout}
+                  className="logout-btn"
+                >
+                  Logout
+                </Button>
               </div>
-            </Navbar.Text>
-            <Button 
-              variant="outline-light" 
-              size="sm"
-              onClick={handleLogout}
-              className="btn-modern"
-            >
-              <span className="me-1">👋</span>
-              Logout
-            </Button>
-          </Nav>
+            </Nav>
+          </Navbar.Collapse>
         </Container>
       </Navbar>
 
       {/* Main Content */}
-      <main className="todo-main">
-        <Container fluid className="py-4">
-          <Row className="justify-content-center">
-            <Col lg={8} xl={6}>
-              <Card className="todo-card animate-fade-in">
-                {/* Progress Section */}
-                <Card.Header className="progress-section">
+      <main className="main-content">
+        <Container>
+          <Row>
+            <Col lg={8} className="mx-auto">
+              {/* Error Alert */}
+              {error && (
+                <Alert 
+                  variant="danger" 
+                  dismissible 
+                  onClose={() => dispatch(clearError())}
+                  className="modern-alert"
+                >
+                  <div className="alert-content">
+                    <div className="alert-icon">⚠️</div>
+                    <div>
+                      <Alert.Heading>Something went wrong</Alert.Heading>
+                      <p className="mb-0">{error}</p>
+                    </div>
+                  </div>
+                </Alert>
+              )}
+
+              {/* Stats Cards */}
+              <Row className="mb-4">
+                <Col md={4}>
+                  <Card className="stat-card">
+                    <Card.Body className="text-center">
+                      <div className="stat-number">{totalCount}</div>
+                      <div className="stat-label">Total Tasks</div>
+                    </Card.Body>
+                  </Card>
+                </Col>
+                <Col md={4}>
+                  <Card className="stat-card">
+                    <Card.Body className="text-center">
+                      <div className="stat-number">{completedCount}</div>
+                      <div className="stat-label">Completed</div>
+                    </Card.Body>
+                  </Card>
+                </Col>
+                <Col md={4}>
+                  <Card className="stat-card">
+                    <Card.Body className="text-center">
+                      <div className="stat-number">{totalCount - completedCount}</div>
+                      <div className="stat-label">Remaining</div>
+                    </Card.Body>
+                  </Card>
+                </Col>
+              </Row>
+
+              {/* Progress Section */}
+              <Card className="progress-card mb-4">
+                <Card.Body>
                   <div className="d-flex justify-content-between align-items-center mb-3">
-                    <Card.Title as="h2" className="section-title mb-0">
-                      Your Tasks
-                    </Card.Title>
-                    <Badge bg="primary" className="progress-badge px-3 py-2">
-                      {completedCount} of {totalCount} completed
+                    <h5 className="progress-title mb-0">Progress Overview</h5>
+                    <Badge className="progress-badge">
+                      {Math.round(progressPercentage)}% Complete
                     </Badge>
                   </div>
                   <ProgressBar 
                     now={progressPercentage} 
-                    className="progress-bar"
-                    style={{ height: '8px' }}
+                    className="modern-progress"
+                    variant="success"
                   />
+                </Card.Body>
+              </Card>
+
+              {/* Add Task Section */}
+              <Card className="add-task-card mb-4">
+                <Card.Body>
+                  <h5 className="card-title mb-3">Add New Task</h5>
+                  <InputGroup size="lg">
+                    <Form.Control
+                      type="text"
+                      placeholder="What needs to be done today?"
+                      value={todoName}
+                      onChange={(e) => setTodoName(e.target.value)}
+                      onKeyPress={handleKeyPress}
+                      className="modern-input"
+                    />
+                    <Button 
+                      variant="success"
+                      onClick={handleAdd}
+                      disabled={!todoName.trim() || operationLoading.add}
+                      className="add-btn"
+                    >
+                      {operationLoading.add ? (
+                        <Spinner animation="border" size="sm" />
+                      ) : (
+                        <>
+                          <span className="me-2">+</span>
+                          Add Task
+                        </>
+                      )}
+                    </Button>
+                  </InputGroup>
+                </Card.Body>
+              </Card>
+
+              {/* Tasks List */}
+              <Card className="tasks-card">
+                <Card.Header className="tasks-header">
+                  <h5 className="mb-0">Your Tasks</h5>
                 </Card.Header>
-
                 <Card.Body className="p-0">
-                  {/* Add Todo Section */}
-                  <div className="add-todo-section p-4 border-bottom">
-                    <InputGroup size="lg">
-                      <Form.Control
-                        type="text"
-                        placeholder="What needs to be done?"
-                        value={todoName}
-                        onChange={(e) => setTodoName(e.target.value)}
-                        onKeyPress={handleKeyPress}
-                        className="input-modern"
-                      />
-                      <Button 
-                        variant="primary"
-                        onClick={handleAdd}
-                        disabled={!todoName.trim()}
-                        className="btn-modern"
-                      >
-                        <span className="me-1">➕</span>
-                        Add Task
-                      </Button>
-                    </InputGroup>
-                  </div>
-
-                  {/* Todo List */}
-                  <div className="todo-list" style={{ maxHeight: '60vh', overflowY: 'auto' }}>
-                    {todos.length === 0 ? (
-                      <div className="empty-state text-center py-5">
-                        <div className="empty-icon mb-3" style={{ fontSize: '4rem' }}>🎯</div>
-                        <h3>No tasks yet!</h3>
-                        <p className="text-muted">Add your first task above to get started.</p>
-                      </div>
-                    ) : (
-                      <ListGroup variant="flush">
-                        {todos.map(todo => (
-                          <ListGroup.Item 
-                            key={todo.id} 
-                            className={`todo-item ${todo.completed ? 'completed' : ''}`}
-                            style={{ border: 'none', padding: '1rem' }}
-                          >
-                            {editId === todo.id ? (
-                              <div className="edit-mode d-flex gap-2">
-                                <Form.Control
-                                  type="text"
-                                  value={editName}
-                                  onChange={(e) => setEditName(e.target.value)}
-                                  onKeyPress={(e) => e.key === 'Enter' && handleSaveEdit()}
-                                  className="input-modern"
-                                  autoFocus
-                                />
-                                <ButtonGroup>
-                                  <Button 
-                                    variant="success"
-                                    size="sm"
-                                    onClick={handleSaveEdit}
-                                    disabled={!editName.trim()}
-                                    className="btn-modern"
-                                  >
-                                    <span className="me-1">✓</span>
-                                    Save
-                                  </Button>
-                                  <Button 
-                                    variant="outline-secondary"
-                                    size="sm"
-                                    onClick={handleCancelEdit}
-                                    className="btn-modern"
-                                  >
-                                    <span className="me-1">✕</span>
-                                    Cancel
-                                  </Button>
-                                </ButtonGroup>
-                              </div>
-                            ) : (
-                              <div className="todo-content d-flex justify-content-between align-items-center">
-                                <div 
-                                  className={`todo-text d-flex align-items-center ${todo.completed ? 'completed' : ''}`}
-                                  onClick={() => dispatch(toggleTodo(todo.id))}
-                                  style={{ cursor: 'pointer', flex: 1 }}
+                  {loading ? (
+                    <div className="loading-container">
+                      <Spinner animation="border" variant="primary" />
+                      <p className="mt-3">Loading your tasks...</p>
+                    </div>
+                  ) : todos.length === 0 ? (
+                    <div className="empty-container">
+                      <div className="empty-icon">📋</div>
+                      <h4>No tasks yet!</h4>
+                      <p>Add your first task above to get started.</p>
+                    </div>
+                  ) : (
+                    <div className="tasks-list">
+                      {todos.map(todo => (
+                        <div 
+                          key={todo.id} 
+                          className={`task-item ${todo.completed ? 'completed' : ''}`}
+                        >
+                          {editId === todo.id ? (
+                            <div className="edit-container">
+                              <Form.Control
+                                type="text"
+                                value={editName}
+                                onChange={(e) => setEditName(e.target.value)}
+                                onKeyPress={(e) => e.key === 'Enter' && handleSaveEdit()}
+                                className="edit-input"
+                                autoFocus
+                              />
+                              <ButtonGroup>
+                                <Button 
+                                  variant="success"
+                                  size="sm"
+                                  onClick={handleSaveEdit}
+                                  disabled={!editName.trim() || operationLoading.update}
                                 >
-                                  <div className="todo-checkbox me-3" style={{ fontSize: '1.2rem' }}>
-                                    {todo.completed ? '✅' : '⭕'}
+                                  {operationLoading.update ? (
+                                    <Spinner animation="border" size="sm" />
+                                  ) : (
+                                    'Save'
+                                  )}
+                                </Button>
+                                <Button 
+                                  variant="outline-secondary"
+                                  size="sm"
+                                  onClick={handleCancelEdit}
+                                >
+                                  Cancel
+                                </Button>
+                              </ButtonGroup>
+                            </div>
+                          ) : (
+                            <div className="task-content">
+                              <div 
+                                className="task-checkbox"
+                                onClick={() => dispatch(toggleTodoAsync({ id: todo.id, completed: !todo.completed }))}
+                              >
+                                {operationLoading.toggle ? (
+                                  <Spinner animation="border" size="sm" />
+                                ) : (
+                                  <div className={`checkbox ${todo.completed ? 'checked' : ''}`}>
+                                    {todo.completed && '✓'}
                                   </div>
-                                  <span className={`todo-name ${todo.completed ? 'text-decoration-line-through text-muted' : ''}`}>
-                                    {todo.name}
-                                  </span>
-                                </div>
-                                <ButtonGroup size="sm">
-                                  <Button
-                                    variant="outline-warning"
-                                    onClick={() => handleEdit(todo)}
-                                    title="Edit task"
-                                    className="btn-modern"
-                                  >
-                                    ✏️
-                                  </Button>
-                                  <Button
-                                    variant="outline-danger"
-                                    onClick={() => dispatch(deleteTodo(todo.id))}
-                                    title="Delete task"
-                                    className="btn-modern"
-                                  >
-                                    🗑️
-                                  </Button>
-                                </ButtonGroup>
+                                )}
                               </div>
-                            )}
-                          </ListGroup.Item>
-                        ))}
-                      </ListGroup>
-                    )}
-                  </div>
+                              <div 
+                                className={`task-text ${todo.completed ? 'completed' : ''}`}
+                                onClick={() => dispatch(toggleTodoAsync({ id: todo.id, completed: !todo.completed }))}
+                              >
+                                {todo.name}
+                              </div>
+                              <div className="task-actions">
+                                <Button
+                                  variant="outline-primary"
+                                  size="sm"
+                                  onClick={() => handleEdit(todo)}
+                                  className="action-btn"
+                                >
+                                  Edit
+                                </Button>
+                                <Button
+                                  variant="outline-danger"
+                                  size="sm"
+                                  onClick={() => dispatch(deleteTodoAsync(todo.id))}
+                                  disabled={operationLoading.delete}
+                                  className="action-btn"
+                                >
+                                  {operationLoading.delete ? (
+                                    <Spinner animation="border" size="sm" />
+                                  ) : (
+                                    'Delete'
+                                  )}
+                                </Button>
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </Card.Body>
               </Card>
             </Col>

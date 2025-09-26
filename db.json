@@ -1,0 +1,15 @@
+{
+  "todos": [
+    {
+      "id": "1",
+      "title": "Learn React Redux",
+      "userId": 1
+    },
+    {
+      "id": "3",
+      "title": "Implement API calls",
+      "completed": false,
+      "userId": 1
+    }
+  ]
+}
